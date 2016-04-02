@@ -18,7 +18,8 @@ def read(fname):
 
 def main():
     """Run the setup."""
-    NAME, DESCRIPTION, LONG_DESCRIPTION = read('README.md')
+    _, DESCRIPTION, LONG_DESCRIPTION = read('README.md')
+    NAME = 'task_buffet'
     setuptools.setup(
         name=NAME,
         version='0.0.1',

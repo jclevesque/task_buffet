@@ -28,8 +28,8 @@ import pickle
 
 import numpy as np
 
-import grid
-import file_lock
+from . import grid
+from . import file_lock
 
 # constants
 TASK_FAILED = -1
@@ -78,7 +78,7 @@ def run(task_function, task_param_names, task_param_values, buffet_name,
 
     # buffet_params contains the raw data for the tasks to execute, whereas
     # buffet will contain the status of each task
-    buffet_params = grid.IterableGrid(task_param_names, param_grid)
+    buffet_params = grid.ParamGrid(task_param_names, param_grid)
 
     #if buffet_name is None:
         # Determine a uid for the current task setup -- if param_grid contains dicts this will NOT work
