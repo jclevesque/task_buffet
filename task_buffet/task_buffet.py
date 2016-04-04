@@ -39,7 +39,7 @@ TASK_RUNNING = 2
 
 
 def run(task_function, task_param_names, task_param_values, buffet_name,
-        build_grid=False):
+        build_grid=False, fail_on_exception=True):
     '''
     The scripts executing the task buffet should setup the description of the
      tasks to be executed and call this function when ready. This script should
@@ -96,7 +96,18 @@ def run(task_function, task_param_names, task_param_values, buffet_name,
         print("running task with parameters: %s" % task_p)
         # might be a long function call, insert time managing stuff
         # around here
-        status = task_function(**task_p)
+        try:
+            status = task_function(**task_p)
+            if status not in [TASK_FAILED, TASK_SUCCESS]:
+                raise Exception("Wrong status returned.")
+        except Exception as exc:
+            if fail_on_exception:
+                print("Caught exception in job %s, stopping." % task_p)
+                raise
+            else:
+                print("Job %s failed with exception %s, marking as failed." %
+                    (task_p, exc))
+                status = TASK_FAILED
 
         with TaskBuffet(buffet_name, buffet_params) as buffet:
             buffet.update_task(task_i, status)
