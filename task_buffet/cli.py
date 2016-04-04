@@ -41,7 +41,7 @@ def main():
 
         if args.r:
             run = np.where(buffet.task_status == task_buffet.TASK_RUNNING)[0]
-            print("Resetting running jobs to available: %s" % failed)
+            print("Resetting running jobs to available: %s" % run)
             buffet.task_status[run] = task_buffet.TASK_AVAILABLE
             buffet.dump_buffet()
 
