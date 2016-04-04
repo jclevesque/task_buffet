@@ -30,7 +30,10 @@ def main():
         long_description=LONG_DESCRIPTION,
         license='MIT',
         packages=setuptools.find_packages(),
-        install_requires=['numpy'])
+        install_requires=['numpy'],
+        entry_points={'console_scripts':
+            ['task-buffet = task_buffet.cli:main']}
+        )
 
 
 if __name__ == '__main__':

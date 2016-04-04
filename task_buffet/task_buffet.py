@@ -116,7 +116,7 @@ def run(task_function, task_param_names, task_param_values, buffet_name,
 
 
 class TaskBuffet:
-    def __init__(self, buffet_name, task_params):
+    def __init__(self, buffet_name, task_params=None):
         self.name = buffet_name
         self.task_params = task_params
         self.lock = file_lock.Locker(self.name)
@@ -138,6 +138,9 @@ class TaskBuffet:
             self.open_buffet()
 
     def setup_buffet(self):
+        if self.task_params is None:
+            raise Exception("Uninitialized task_params, cannot setup a new"
+                " buffet.")
         self.task_status = np.ones(self.task_params.nvals, dtype=int) * TASK_AVAILABLE
         self.dump_buffet()
 
@@ -152,6 +155,10 @@ class TaskBuffet:
         f.close()
 
     def get_next_free(self):
+        if self.task_params is None:
+            raise Exception("Uninitialized task_params, cannot return free"
+                " params.")
+
         free = np.where(self.task_status == TASK_AVAILABLE)[0]
         if len(free) == 0:
             return -1, {}
