@@ -25,6 +25,7 @@ Note: since everything hangs on a file based locking mechanism, this probably
 import hashlib
 import os
 import pickle
+import traceback
 
 import numpy as np
 
@@ -107,6 +108,7 @@ def run(task_function, task_param_names, task_param_values, buffet_name,
             else:
                 print("Job %s failed with exception %s, marking as failed." %
                     (task_p, exc))
+                print(traceback.format_exc())
                 status = TASK_FAILED
 
         with TaskBuffet(buffet_name, buffet_params) as buffet:
