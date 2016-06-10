@@ -1,7 +1,7 @@
 # Copyright (C) 2016 Julien-Charles Levesque
 '''
-Define and execute a series of tasks given distributed worker processes or 
- nodes. The workers are said to pick tasks from a `buffet`, and they will 
+Define and execute a series of tasks given distributed worker processes or
+ nodes. The workers are said to pick tasks from a `buffet`, and they will
  keep eating tasks until there are no more to be found. Synchronization is
  based on file locks, so all worker must have access to the same filesystem.
 
@@ -56,15 +56,15 @@ def run(task_function, task_param_names, task_param_values, buffet_name,
 
     task_function: a function to call for the execution of a task, should take
         as input a list of parameters, described in task_param names and
-        values. The task function must return 0 if it succeeded and -1 
+        values. The task function must return 0 if it succeeded and -1
         if it failed.
 
     task_param_names: names of the parameters to draw upon. The ordering of
         parameters must match that of `task_param_values`.
 
     task_param_values: list of values for corresponding parameters.
-        If `build_grid` is true, a mesh grid is built with each unique 
-        parameter value. If `build_grid` is False, must have a shape 
+        If `build_grid` is true, a mesh grid is built with each unique
+        parameter value. If `build_grid` is False, must have a shape
         n_params x n_jobs, with different values for each parameter on each
         column.
 
@@ -74,7 +74,7 @@ def run(task_function, task_param_names, task_param_values, buffet_name,
     Notes:
     ------
 
-    In the case of a grid, parameter ordering in task_param_names & 
+    In the case of a grid, parameter ordering in task_param_names &
      task_param_values will change the order in which tasks will be
      computed. First parameters are looped upon first, and the last
      parameter at the end.
@@ -92,7 +92,7 @@ def run(task_function, task_param_names, task_param_values, buffet_name,
                 break
 
         # Next call locks the buffet
-        with TaskBuffet(buffet_name, task_param_names, task_param_values, 
+        with TaskBuffet(buffet_name, task_param_names, task_param_values,
                 build_grid=build_grid) as buffet:
             task_i, task_p = buffet.get_next_free()
             if task_i < 0:
@@ -150,8 +150,7 @@ class TaskBuffet:
         self.lock.release()
 
     def __del__(self,):
-        print("del")
-        if self.lock.is_locked():
+        if self.lock.i_am_locking():
             self.lock.release()
 
     def access_buffet(self):
@@ -171,7 +170,7 @@ class TaskBuffet:
 
         # task_params contains the raw data for the tasks to execute, whereas
         # buffet will contain the status of each task
-        self.task_params = grid.ParamGrid(self.task_param_names, 
+        self.task_params = grid.ParamGrid(self.task_param_names,
             self.task_param_values, meshgrid=self.build_grid)
 
         self.task_status = np.ones(self.task_params.nvals, dtype=int) * TASK_AVAILABLE
@@ -211,16 +210,17 @@ class TaskBuffet:
         '''
         if self.task_param_names is not None:
             saved_g = self.task_params
-            new_g = grid.ParamGrid(self.task_param_names, 
+            new_g = grid.ParamGrid(self.task_param_names,
                 self.task_param_values, self.build_grid)
 
-            if not merge and saved_g != new_g:
+            if saved_g == new_g:
+                # Task buffets identical, nothing to see here carry on
+                return
+            elif not merge:
                 raise Exception("Task buffet saved in %s differs from"
                     " parameters passed right now. Saved grid: %s, new"
                     " grid: %s" % (self.name, saved_g, new_g))
-
-            # Merge buffets
-            if merge:
+            else:
                 print("Merging experiments into new frame.")
                 new_task_status = np.ones(new_g.nvals, dtype=int)\
                     * TASK_AVAILABLE
@@ -260,8 +260,8 @@ class TaskBuffet:
     def print_status(self, ):
         sz = self.get_size()
         print("%i tasks finished, %i tasks failed, %i tasks running,"
-            " and %i tasks available out of a total of %i tasks." % 
-            (np.sum(self.task_status == TASK_SUCCESS), 
+            " and %i tasks available out of a total of %i tasks." %
+            (np.sum(self.task_status == TASK_SUCCESS),
             np.sum(self.task_status == TASK_FAILED),
             np.sum(self.task_status == TASK_RUNNING),
             np.sum(self.task_status == TASK_AVAILABLE),

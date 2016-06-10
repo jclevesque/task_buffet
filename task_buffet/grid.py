@@ -28,10 +28,10 @@ class ParamGrid():
             yield {k:v[i] for k,v in grid.items()}
 
     def __eq__(self, comp):
-        comp_names = np.all(np.array(self.names) == 
+        comp_names = np.all(np.array(self.names) ==
                     np.array(comp.names))
-        comp_values = [np.all(comp.values[i] == self.values[i]) 
-                       for i in range(self.nparams)]
+        comp_values = np.all([np.all(comp.values[i] == self.values[i])
+                       for i in range(self.nparams)])
         return comp_names & comp_values
 
 
