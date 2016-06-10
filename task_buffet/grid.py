@@ -4,13 +4,20 @@ import numpy as np
 
 
 class ParamGrid():
-    def __init__(self, names, values):
+    def __init__(self, names, values, meshgrid=False):
+        if meshgrid:
+            param_grid = nd_meshgrid(*values)
+            param_grid = [p.flatten() for p in param_grid]
+        else:
+            param_grid = values
+
         self.names = names
-        self.values = values
-        self.nvals = len(values[0])
+        self.values = param_grid
+        self.nvals = len(self.values[0])
+        assert(np.all([len(v) == self.nvals for v in self.values]))
+
         self.nparams = len(names)
         self.shape = (self.nparams, self.nvals)
-        assert(np.all([len(v) == self.nvals for v in values]))
 
     def __getitem__(self, i):
         # Returns a dictionary with wrapped argument for position i
@@ -19,6 +26,13 @@ class ParamGrid():
     def __iter__(self, i):
         for i in range(self.nvals):
             yield {k:v[i] for k,v in grid.items()}
+
+    def __eq__(self, comp):
+        comp_names = np.all(np.array(self.names) == 
+                    np.array(comp.names))
+        comp_values = [np.all(comp.values[i] == self.values[i]) 
+                       for i in range(self.nparams)]
+        return comp_names & comp_values
 
 
 def nd_meshgrid(*arrs):

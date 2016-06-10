@@ -1,6 +1,9 @@
-# Copyright (C) 2015 Julien-Charles Levesque
+# Copyright (C) 2016 Julien-Charles Levesque
 '''
-Define and execute a series of tasks given distributed worker processes or nodes. The workers are said to pick tasks from a `buffet`, and they will keep eating tasks until there are no more to be found. Synchronization is based on file locks, so all worker must have access to the same filesystem.
+Define and execute a series of tasks given distributed worker processes or 
+ nodes. The workers are said to pick tasks from a `buffet`, and they will 
+ keep eating tasks until there are no more to be found. Synchronization is
+ based on file locks, so all worker must have access to the same filesystem.
 
 First process to run and grab the buffet lock creates a task_status
  structure, and the subsequent steps are:
@@ -22,9 +25,10 @@ Note: since everything hangs on a file based locking mechanism, this probably
  will not scale up to hundreds of processes, or at least it will do so badly.
 '''
 
-import hashlib
+import bz2
 import os
 import pickle
+import time
 import traceback
 
 import numpy as np
@@ -40,7 +44,7 @@ TASK_RUNNING = 2
 
 
 def run(task_function, task_param_names, task_param_values, buffet_name,
-        build_grid=False, fail_on_exception=True):
+        build_grid=False, fail_on_exception=True, time_budget=None):
     '''
     The scripts executing the task buffet should setup the description of the
      tasks to be executed and call this function when ready. This script should
@@ -51,11 +55,18 @@ def run(task_function, task_param_names, task_param_values, buffet_name,
     -----------
 
     task_function: a function to call for the execution of a task, should take
-        as input a list of parameters, described in `task_params`. The task
-        function must return 0 if it succeeded and -1 if it failed.
+        as input a list of parameters, described in task_param names and
+        values. The task function must return 0 if it succeeded and -1 
+        if it failed.
 
-    task_params: a list of parameters to draw upon, can be parameters used to
-        build a grid, but the mode should then be set with `build_grid=True`
+    task_param_names: names of the parameters to draw upon. The ordering of
+        parameters must match that of `task_param_values`.
+
+    task_param_values: list of values for corresponding parameters.
+        If `build_grid` is true, a mesh grid is built with each unique 
+        parameter value. If `build_grid` is False, must have a shape 
+        n_params x n_jobs, with different values for each parameter on each
+        column.
 
     build_grid: if true, build a mesh grid from the different parameters
         provided in `task_params`
@@ -63,40 +74,37 @@ def run(task_function, task_param_names, task_param_values, buffet_name,
     Notes:
     ------
 
-    Parameter ordering in task_param_names & task_param_values will change the
-     order in which tasks will be computed. First parameters are looped upon
-     first, and the last parameter at the end.
+    In the case of a grid, parameter ordering in task_param_names & 
+     task_param_values will change the order in which tasks will be
+     computed. First parameters are looped upon first, and the last
+     parameter at the end.
     '''
-
-    if build_grid:
-        param_grid = grid.nd_meshgrid(*task_param_values)
-        param_grid = [p.flatten() for p in param_grid]
-        n = len(param_grid[0])
-    else:
-        n = len(task_param_values[0])
-        assert(np.all([len(vals) == n for vals in task_param_values]))
-        param_grid = task_param_values
-
-    # buffet_params contains the raw data for the tasks to execute, whereas
-    # buffet will contain the status of each task
-    buffet_params = grid.ParamGrid(task_param_names, param_grid)
-
-    #if buffet_name is None:
-        # Determine a uid for the current task setup -- if param_grid contains dicts this will NOT work
-        # all in all automatically determining this sounds like a bad idea.
-        #buffet_name = 'buffet_' + hashlib.md5(pickle.dumps([task_param_names, param_grid])).hexdigest()
+    time_start = time.time()
+    out_of_time = False
 
     task_i = 0
     while task_i >= 0:
-        with TaskBuffet(buffet_name, buffet_params) as buffet:
+        if time_budget is not None:
+            time_left = time_budget - (time.time() - time_start)
+            # if there is no time left, we can stop in here
+            if time_left < 0:
+                out_of_time = True
+                break
+
+        # Next call locks the buffet
+        with TaskBuffet(buffet_name, task_param_names, task_param_values, 
+                build_grid=build_grid) as buffet:
             task_i, task_p = buffet.get_next_free()
             if task_i < 0:
                 continue
-            # Release buffet/lock
+        # Release buffet/lock
 
         print("running task with parameters: %s" % task_p)
-        # might be a long function call, insert time managing stuff
-        # around here
+        # Will not force a task to exit, because that would require a separate
+        # process. Give the time left to the task_func and let it handle it
+        if time_budget is not None:
+            task_p['time_left'] = time_left
+
         try:
             status = task_function(**task_p)
             if status not in [TASK_FAILED, TASK_SUCCESS]:
@@ -111,16 +119,26 @@ def run(task_function, task_param_names, task_param_values, buffet_name,
                 print(traceback.format_exc())
                 status = TASK_FAILED
 
-        with TaskBuffet(buffet_name, buffet_params) as buffet:
+        # Lock buffet again to update it
+        with TaskBuffet(buffet_name) as buffet:
             buffet.update_task(task_i, status)
 
-    print("Done executing all tasks in the buffet.")
+    if out_of_time:
+        print("Ran out of time.")
+    else:
+        print("Done executing all tasks in the buffet.")
 
 
 class TaskBuffet:
-    def __init__(self, buffet_name, task_params=None):
+    def __init__(self, buffet_name, task_param_names=None,
+            task_param_values=None, build_grid=False):
+
         self.name = buffet_name
-        self.task_params = task_params
+        self.task_param_names = task_param_names
+        self.task_param_values = task_param_values
+        self.task_params = None
+
+        self.build_grid = build_grid
         self.lock = file_lock.Locker(self.name)
 
     def __enter__(self):
@@ -131,30 +149,95 @@ class TaskBuffet:
     def __exit__(self, *_exc):
         self.lock.release()
 
+    def __del__(self,):
+        print("del")
+        if self.lock.is_locked():
+            self.lock.release()
+
     def access_buffet(self):
         # Check if the job running with lock is the first job to execute
         if not os.path.exists(self.name):
             # Arrange the buffet
-            self.setup_buffet()
+            self.setup_new_buffet()
         else:
             self.open_buffet()
 
-    def setup_buffet(self):
-        if self.task_params is None:
-            raise Exception("Uninitialized task_params, cannot setup a new"
-                " buffet.")
+    def setup_new_buffet(self):
+        """ Initialize a new buffet, must have received task_param_values
+         and names in constructor"""
+        if self.task_param_names is None and self.task_param_values is None:
+            raise Exception("Uninitialized task_param names and values, cannot"
+            " setup a new buffet.")
+
+        # task_params contains the raw data for the tasks to execute, whereas
+        # buffet will contain the status of each task
+        self.task_params = grid.ParamGrid(self.task_param_names, 
+            self.task_param_values, meshgrid=self.build_grid)
+
         self.task_status = np.ones(self.task_params.nvals, dtype=int) * TASK_AVAILABLE
         self.dump_buffet()
 
     def dump_buffet(self):
-        f = open(self.name, 'wb')
+        f = bz2.open(self.name, 'wb')
         pickle.dump(self.task_status, f)
+        pickle.dump(self.task_params, f)
         f.close()
 
     def open_buffet(self):
-        f = open(self.name, 'rb')
+        # Find filetype
+        try:
+            f = bz2.open(self.name, 'rb')
+            f.read()
+            f.seek(0)
+        except:
+            f = open(self.name, 'rb')
+
         self.task_status = pickle.load(f)
+        try:
+            self.task_params = pickle.load(f)
+        except:
+            print("Warning: unable to load task params. could be an old"
+                " buffet or something is wrong. Will not be able to"
+                " launch new tasks.")
+            self.task_params = None
         f.close()
+
+        # Check for compatibility with whatever buffet was loaded
+        self.check_merge_buffets()
+
+    def check_merge_buffets(self, merge=True):
+        '''
+        See if the new buffet corresponds to whatever was saved.
+        '''
+        if self.task_param_names is not None:
+            saved_g = self.task_params
+            new_g = grid.ParamGrid(self.task_param_names, 
+                self.task_param_values, self.build_grid)
+
+            if not merge and saved_g != new_g:
+                raise Exception("Task buffet saved in %s differs from"
+                    " parameters passed right now. Saved grid: %s, new"
+                    " grid: %s" % (self.name, saved_g, new_g))
+
+            # Merge buffets
+            if merge:
+                print("Merging experiments into new frame.")
+                new_task_status = np.ones(new_g.nvals, dtype=int)\
+                    * TASK_AVAILABLE
+
+                for p in range(saved_g.nvals):
+                    saved_p = saved_g[p]
+                    i = 0
+                    while saved_p != new_g[i]:
+                        i += 1
+                        if i == new_g.nvals:
+                            raise Exception("Unable to find match for a task"
+                                " while merging buffets: %s" % saved_p)
+                    print("DEBUG: Match for saved_g %i is new_g %i" % (p, i))
+                    new_task_status[i] = self.task_status[p]
+                self.task_status = new_task_status
+                self.task_params = new_g
+                self.dump_buffet()
 
     def get_next_free(self):
         if self.task_params is None:
@@ -173,3 +256,16 @@ class TaskBuffet:
     def update_task(self, task_i, status):
         self.task_status[task_i] = status
         self.dump_buffet()
+
+    def print_status(self, ):
+        sz = self.get_size()
+        print("%i tasks finished, %i tasks failed, %i tasks running,"
+            " and %i tasks available out of a total of %i tasks." % 
+            (np.sum(self.task_status == TASK_SUCCESS), 
+            np.sum(self.task_status == TASK_FAILED),
+            np.sum(self.task_status == TASK_RUNNING),
+            np.sum(self.task_status == TASK_AVAILABLE),
+            sz))
+
+    def get_size(self, ):
+        return len(self.task_status)
