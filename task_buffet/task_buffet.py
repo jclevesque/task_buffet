@@ -107,7 +107,7 @@ def run(task_function, task_param_names, task_param_values, buffet_name,
 
         try:
             status = task_function(**task_p)
-            if status not in [TASK_FAILED, TASK_SUCCESS]:
+            if status not in [TASK_FAILED, TASK_SUCCESS, TASK_AVAILABLE]:
                 raise Exception("Wrong status returned.")
         except Exception as exc:
             if fail_on_exception:
