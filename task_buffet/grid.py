@@ -23,9 +23,9 @@ class ParamGrid():
         # Returns a dictionary with wrapped argument for position i
         return {n:v[i] for n, v in zip(self.names, self.values)}
 
-    def __iter__(self, i):
+    def __iter__(self,):
         for i in range(self.nvals):
-            yield {k:v[i] for k,v in grid.items()}
+            yield {n:v[i] for n, v in zip(self.names, self.values)}
 
     def __eq__(self, comp):
         comp_names = np.all(np.array(self.names) ==
