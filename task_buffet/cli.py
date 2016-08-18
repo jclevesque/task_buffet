@@ -6,7 +6,7 @@ import sys
 
 import numpy as np
 
-from task_buffet import task_buffet
+import task_buffet
 
 
 def buffet_cli(buffet_filename, reset_failed, reset_running, no_backup, print_task_id=None):
@@ -44,14 +44,15 @@ def main():
     parser.add_argument("-r", action="store_true",
         help="Reset running tasks.")
     
-    parser.add_argument("--print-task", help="Print details for task id provided")
+    parser.add_argument("--print-task", type=int,
+        help="Print details for task id provided")
 
     args = parser.parse_args()
 
     if not os.path.exists(args.buffet_filename):
         raise Exception("Given buffet %s does not exist." % args.buffet_filename)
 
-    if not args.f and not args.r and not args.print_task:
+    if not args.f and not args.r and args.print_task is None:
         raise Exception("No action specified, nothing to do.")
 
     buffet_cli(args.buffet_filename, args.f, args.r, args.no_backup, args.print_task)
