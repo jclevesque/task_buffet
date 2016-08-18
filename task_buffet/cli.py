@@ -9,7 +9,7 @@ import numpy as np
 from task_buffet import task_buffet
 
 
-def buffet_cli(buffet_filename, reset_failed, reset_running, no_backup):
+def buffet_cli(buffet_filename, reset_failed, reset_running, no_backup, print_task_id=None):
     with task_buffet.TaskBuffet(buffet_filename) as buffet:
         if not no_backup:
             shutil.copy(buffet_filename, buffet_filename + '.bkp')
@@ -25,6 +25,9 @@ def buffet_cli(buffet_filename, reset_failed, reset_running, no_backup):
             print("Resetting running jobs to available: %s" % run)
             buffet.task_status[run] = task_buffet.TASK_AVAILABLE
             buffet.dump_buffet()
+    
+        if print_task_id is not None:
+            print(buffet.task_params[print_task_id])
 
     return 0
 
@@ -40,16 +43,18 @@ def main():
         help="Reset failed tasks.")
     parser.add_argument("-r", action="store_true",
         help="Reset running tasks.")
+    
+    parser.add_argument("--print-task", help="Print details for task id provided")
 
     args = parser.parse_args()
 
     if not os.path.exists(args.buffet_filename):
         raise Exception("Given buffet %s does not exist." % args.buffet_filename)
 
-    if not args.f and not args.r:
+    if not args.f and not args.r and not args.print_task:
         raise Exception("No action specified, nothing to do.")
 
-    buffet_cli(args.buffet_filename, args.f, args.r, args.no_backup)
+    buffet_cli(args.buffet_filename, args.f, args.r, args.no_backup, args.print_task)
 
 
 if __name__ == '__main__':
