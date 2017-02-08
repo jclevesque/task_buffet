@@ -51,6 +51,12 @@ def run(task_function, task_param_names, task_param_values, buffet_name,
      run on all worker nodes and be called with the same parameters to ensure
      proper execution.
 
+    Returns:
+    --------
+
+    Returns True if `time_budget` was provided, and the tasks ran out of time,
+    otherwise returns False. 
+
     Parameters:
     -----------
 
@@ -125,8 +131,10 @@ def run(task_function, task_param_names, task_param_values, buffet_name,
 
     if out_of_time:
         print("Ran out of time.")
+        return True
     else:
         print("Done executing all tasks in the buffet.")
+        return False
 
 
 class TaskBuffet:
