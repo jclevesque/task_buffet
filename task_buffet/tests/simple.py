@@ -7,8 +7,8 @@ import task_buffet
 
 
 def my_task(a, b):
-    time.sleep(0.1)
-    c = a + b
+    time.sleep(0.5)
+    print(a + b)
     return task_buffet.TASK_SUCCESS
 
 

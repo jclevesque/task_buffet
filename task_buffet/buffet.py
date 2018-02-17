@@ -26,6 +26,8 @@ Note: since everything hangs on a file based locking mechanism, this probably
 '''
 
 import bz2
+import functools
+import multiprocessing
 import os
 import pickle
 import time
@@ -43,6 +45,24 @@ TASK_AVAILABLE = 1
 TASK_RUNNING = 2
 
 
+def run_mp(n_worker, task_function, *args, **kwargs):
+    '''
+    Wrapper around run which will launch `n_worker` processes executing tasks.
+     Processes launched with python multiprocessing. See `run` function for
+     a description of the parameters.
+    '''
+    f = functools.partial(run, task_function, *args, **kwargs)
+    p = multiprocessing.Pool(n_worker)
+    future_returns = [p.apply_async(f) for i in range(n_worker)]
+    returns = [f.get() for f in future_returns]
+    if np.any(returns):
+        print("Multiprocessing: ran out of time.")
+        return True
+    else:
+        print("Multiprocessing: done executing all tasks in the buffet.")
+        return False
+
+
 def run(task_function, task_param_names, task_param_values, buffet_name,
         build_grid=False, fail_on_exception=True, time_budget=None):
     '''
@@ -55,7 +75,7 @@ def run(task_function, task_param_names, task_param_values, buffet_name,
     --------
 
     Returns True if `time_budget` was provided, and the tasks ran out of time,
-    otherwise returns False. 
+    otherwise returns False.
 
     Parameters:
     -----------
