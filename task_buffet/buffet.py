@@ -161,13 +161,15 @@ class TaskBuffet:
     def __init__(self, buffet_name, task_param_names=None,
             task_param_values=None, build_grid=False):
 
-        self.name = buffet_name
+        self.name = os.path.split(buffet_name)[-1]
+        self.dir = os.path.split(buffet_name)[0]
+        self.path = buffet_name
         self.task_param_names = task_param_names
         self.task_param_values = task_param_values
         self.task_params = None
 
         self.build_grid = build_grid
-        self.lock = file_lock.Locker(self.name)
+        self.lock = file_lock.Locker(self.path)
 
     def __enter__(self):
         self.lock.acquire()
@@ -183,7 +185,7 @@ class TaskBuffet:
 
     def access_buffet(self):
         # Check if the job running with lock is the first job to execute
-        if not os.path.exists(self.name):
+        if not os.path.exists(self.path):
             # Arrange the buffet
             self.setup_new_buffet()
         else:
@@ -205,7 +207,7 @@ class TaskBuffet:
         self.dump_buffet()
 
     def dump_buffet(self):
-        f = bz2.open(self.name, 'wb')
+        f = bz2.open(self.path, 'wb')
         pickle.dump(self.task_status, f)
         pickle.dump(self.task_params, f)
         f.close()
@@ -213,11 +215,11 @@ class TaskBuffet:
     def open_buffet(self):
         # Find filetype
         try:
-            f = bz2.open(self.name, 'rb')
+            f = bz2.open(self.path, 'rb')
             f.read()
             f.seek(0)
         except:
-            f = open(self.name, 'rb')
+            f = open(self.path, 'rb')
 
         self.task_status = pickle.load(f)
         try:
@@ -247,7 +249,7 @@ class TaskBuffet:
             elif not merge:
                 raise Exception("Task buffet saved in %s differs from"
                     " parameters passed right now. Saved grid: %s, new"
-                    " grid: %s" % (self.name, saved_g, new_g))
+                    " grid: %s" % (self.path, saved_g, new_g))
             else:
                 print("Merging experiments into new frame.")
                 new_task_status = np.ones(new_g.nvals, dtype=int)\
@@ -287,9 +289,10 @@ class TaskBuffet:
 
     def print_status(self, ):
         sz = self.get_size()
-        print("%i tasks finished, %i tasks failed, %i tasks running,"
+        print("Buffet %s: %i tasks finished, %i tasks failed, %i tasks running,"
             " and %i tasks available out of a total of %i tasks." %
-            (np.sum(self.task_status == TASK_SUCCESS),
+            (self.name,
+            np.sum(self.task_status == TASK_SUCCESS),
             np.sum(self.task_status == TASK_FAILED),
             np.sum(self.task_status == TASK_RUNNING),
             np.sum(self.task_status == TASK_AVAILABLE),
