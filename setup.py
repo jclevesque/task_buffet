@@ -22,7 +22,7 @@ def main():
     NAME = 'task_buffet'
     setuptools.setup(
         name=NAME,
-        version='0.0.1',
+        version='0.1',
         author='Julien-Charles Levesque',
         author_email='levesque.jc@gmail.com',
         url='http://github.com/jclevesque/' + NAME,

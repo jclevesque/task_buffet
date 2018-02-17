@@ -168,6 +168,9 @@ class TaskBuffet:
         self.task_param_values = task_param_values
         self.task_params = None
 
+        if not os.path.exists(self.dir):
+            os.makedirs(self.dir, exist_ok=True)
+
         self.build_grid = build_grid
         self.lock = file_lock.Locker(self.path)
 
