@@ -108,6 +108,13 @@ def run(task_function, task_param_names, task_param_values, buffet_name,
     time_start = time.time()
     out_of_time = False
 
+    if hasattr(task_function, 'keywords'):
+        for key in task_function.keywords.keys():
+            if key in task_param_names:
+                raise Exception("Keyword specified in wrapped original function will be "
+                    "overriden by task buffet. Will not do this override manually. Add a flag "
+                    "or something.")
+
     task_i = 0
     while task_i >= 0:
         if time_budget is not None:
@@ -168,7 +175,7 @@ class TaskBuffet:
         self.task_param_values = task_param_values
         self.task_params = None
 
-        if not os.path.exists(self.dir):
+        if not os.path.exists(self.dir) and self.dir != '':
             os.makedirs(self.dir, exist_ok=True)
 
         self.build_grid = build_grid
