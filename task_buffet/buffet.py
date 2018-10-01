@@ -63,8 +63,14 @@ def run_mp(n_worker, task_function, *args, **kwargs):
         return False
 
 
+def mp_queue_fwrap(out_queue, func, func_kwargs):
+    result = func(**func_kwargs)
+    out_queue.put(result)
+
+
 def run(task_function, task_param_names, task_param_values, buffet_name,
-        build_grid=False, fail_on_exception=True, time_budget=None):
+        build_grid=False, fail_on_exception=True, time_budget=None,
+        mp_timeout=False):
     '''
     The scripts executing the task buffet should setup the description of the
      tasks to be executed and call this function when ready. This script should
@@ -97,6 +103,11 @@ def run(task_function, task_param_names, task_param_values, buffet_name,
     build_grid: if true, build a mesh grid from the different parameters
         provided in `task_params`
 
+    mp_timeout: if true, will launch jobs in a subprocess with timeout
+        parameter. Use this if you cannot allow processes to run over
+        a certain time limit. Processes will exit cleanly and set tasks
+        as available again.
+
     Notes:
     ------
 
@@ -128,13 +139,26 @@ def run(task_function, task_param_names, task_param_values, buffet_name,
         print("running task with parameters: %s" % task_p)
         # Will not force a task to exit, because that would require a separate
         # process. Give the time left to the task_func and let it handle it
-        if time_budget is not None:
+        if time_budget is not None and not mp_timeout:
             task_p['time_left'] = time_left
 
         try:
-            status = task_function(**task_p)
+            if mp_timeout:
+                out_queue = multiprocessing.Queue()
+                proc = multiprocessing.Process(target=mp_queue_fwrap,
+                    args=(out_queue, task_function, task_p))
+                proc.start()
+                proc.join(timeout=time_left)
+                status = out_queue.get()
+            else:
+                status = task_function(**task_p)
             if status not in [TASK_FAILED, TASK_SUCCESS, TASK_AVAILABLE]:
                 raise Exception("Wrong status returned.")
+        except multiprocessing.TimeoutError as exc:
+            # time ran out, put back task as available
+            # TODO: allow way to execute operations when a task is interrupted
+            # allow it to exit cleanly (e.g., remove pending jobs in BO)
+            status = TASK_AVAILABLE
         except Exception as exc:
             if fail_on_exception:
                 print("Caught exception in job %s, stopping." % task_p)
@@ -162,7 +186,7 @@ class TaskBuffet:
             task_param_values=None, build_grid=False):
 
         self.name = os.path.split(buffet_name)[-1]
-        self.dir = os.path.split(buffet_name)[0]
+        self.dir = os.path.abspath(os.path.split(buffet_name)[0])
         self.path = buffet_name
         self.task_param_names = task_param_names
         self.task_param_values = task_param_values
