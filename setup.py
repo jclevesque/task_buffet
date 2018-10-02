@@ -22,7 +22,7 @@ def main():
     NAME = 'task_buffet'
     setuptools.setup(
         name=NAME,
-        version='0.1',
+        version='0.2',
         author='Julien-Charles Levesque',
         author_email='levesque.jc@gmail.com',
         url='http://github.com/jclevesque/' + NAME,
@@ -30,7 +30,7 @@ def main():
         long_description=LONG_DESCRIPTION,
         license='MIT',
         packages=setuptools.find_packages(),
-        install_requires=['numpy'],
+        install_requires=['numpy', 'psutil'],
         entry_points={'console_scripts':
             ['task-buffet = task_buffet.cli:main']}
         )

@@ -35,8 +35,9 @@ import traceback
 
 import numpy as np
 
-from . import grid
 from . import file_lock
+from . import grid
+from . import util
 
 # constants
 TASK_FAILED = -1
@@ -122,9 +123,9 @@ def run(task_function, task_param_names, task_param_values, buffet_name,
     if hasattr(task_function, 'keywords'):
         for key in task_function.keywords.keys():
             if key in task_param_names:
-                raise Exception("Keyword specified in wrapped original function will be "
-                    "overriden by task buffet. Will not do this override manually. Add a flag "
-                    "or something.")
+                raise Exception("Keyword specified in wrapped original"
+" function will be overriden by task buffet. Will not do this override"
+" manually. Add a flag or something.")
 
     task_i = 0
     while task_i >= 0:
@@ -143,7 +144,7 @@ def run(task_function, task_param_names, task_param_values, buffet_name,
                 continue
         # Release buffet/lock
 
-        print("running task with parameters: %s" % task_p)
+        print("Running task with parameters: %s" % task_p)
         # Will not force a task to exit, because that would require a separate
         # process. Give the time left to the task_func and let it handle it
         if time_budget is not None and not mp_timeout:
@@ -156,16 +157,21 @@ def run(task_function, task_param_names, task_param_values, buffet_name,
                     args=(out_queue, task_function, task_p))
                 proc.start()
                 proc.join(timeout=time_left)
-                status = out_queue.get()
+
+                if proc.is_alive():
+                    status = TASK_AVAILABLE
+                    print("Out of time, task interrupted, putting back as"
+                        " available.")
+                    util.kill_proc_tree(proc.pid)
+                elif proc.exitcode != 0:
+                    status = TASK_FAILED
+                    print("Job exited with code %i" % proc.exitcode)
+                else:
+                    status = out_queue.get()
             else:
                 status = task_function(**task_p)
             if status not in [TASK_FAILED, TASK_SUCCESS, TASK_AVAILABLE]:
                 raise Exception("Wrong status returned.")
-        except multiprocessing.TimeoutError as exc:
-            # time ran out, put back task as available
-            # TODO: allow way to execute operations when a task is interrupted
-            # allow it to exit cleanly (e.g., remove pending jobs in BO)
-            status = TASK_AVAILABLE
         except Exception as exc:
             if fail_on_exception:
                 print("Caught exception in job %s, stopping." % task_p)

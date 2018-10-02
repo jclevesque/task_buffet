@@ -12,6 +12,11 @@ def my_task(a, b):
     return task_buffet.TASK_SUCCESS
 
 
+def my_task_error(a, b):
+    raise Exception("Task fails.")
+    return task_buffet.TASK_SUCCESS
+
+
 def main():
     A = list(range(5))
     B = list(range(5, 10))
