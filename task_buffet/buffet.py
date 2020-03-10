@@ -27,6 +27,7 @@ Note: since everything hangs on a file based locking mechanism, this probably
 
 import bz2
 import functools
+import logging
 import multiprocessing
 import os
 import pickle
@@ -283,7 +284,7 @@ class TaskBuffet:
             new_g = grid.ParamGrid(self.task_param_names,
                 self.task_param_values, self.build_grid)
 
-            if saved_g == new_g:
+            if util.tasks_eq(saved_g, new_g):
                 # Task buffets identical, nothing to see here carry on
                 return
             elif not merge:
@@ -298,12 +299,12 @@ class TaskBuffet:
                 for p in range(saved_g.nvals):
                     saved_p = saved_g[p]
                     i = 0
-                    while saved_p != new_g[i]:
+                    while not util.tasks_eq(saved_p, new_g[i]):
                         i += 1
                         if i == new_g.nvals:
                             raise Exception("Unable to find match for a task"
                                 " while merging buffets: %s" % saved_p)
-                    print("DEBUG: Match for saved_g %i is new_g %i" % (p, i))
+                    logging.debug("Match for saved_g %i is new_g %i" % (p, i))
                     new_task_status[i] = self.task_status[p]
                 self.task_status = new_task_status
                 self.task_params = new_g

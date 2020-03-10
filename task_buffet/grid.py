@@ -2,6 +2,8 @@
 
 import numpy as np
 
+from .util import tasks_eq
+
 
 class ParamGrid():
     def __init__(self, names, values, meshgrid=False):
@@ -30,7 +32,7 @@ class ParamGrid():
     def __eq__(self, comp):
         comp_names = np.all(np.array(self.names) ==
                     np.array(comp.names))
-        comp_values = np.all([np.all(comp.values[i] == self.values[i])
+        comp_values = np.all([np.all(tasks_eq(comp.values[i], self.values[i]))
                        for i in range(self.nparams)])
         return comp_names & comp_values
 
@@ -48,7 +50,10 @@ def nd_meshgrid(*arrs):
     for i, arr in enumerate(arrs):
         slc = [1]*dim
         slc[i] = lens[i]
-        arr2 = np.asarray(arr, dtype='object').reshape(slc)
+        # create a numpy array of objects
+        arr2 = np.empty(len(arr), dtype='object')
+        arr2[:] = arr
+        arr2 = arr2.reshape(slc)
         for j, sz in enumerate(lens):
             if j != i:
                 arr2 = arr2.repeat(sz, axis=j)
